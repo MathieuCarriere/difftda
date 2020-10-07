@@ -15,15 +15,20 @@ import gudhi               as gd
 
 # The parameters of the model are the vertex function values of the simplex tree.
 
-def SimplexTree(fct, dim, card):
-    # Parameters: fct (function values on the vertices of stbase),
+def SimplexTree(stbase, fct, dim, card):
+    # Parameters: stbase (array containing the name of the file where the simplex tree is located)
+    #             fct (function values on the vertices of stbase),
     #             dim (homological dimension),
     #             card (number of persistence diagram points, sorted by distance-to-diagonal)
     
     # Copy stbase in another simplex tree st
     st = gd.SimplexTree()
-    for (s,_) in stbase.get_filtration():
+    f = open(stbase[0], "r")
+    for line in f:
+        ints = line.split(" ")
+        s = [int(v) for v in ints[:-1]]
         st.insert(s, -1e10)
+    f.close()
         
     # Assign new filtration values
     for i in range(st.num_vertices()):
@@ -60,18 +65,19 @@ def SimplexTree(fct, dim, card):
 
 class SimplexTreeModel(tf.keras.Model):
 
-    def __init__(self, F, dim=0, card=50):
+    def __init__(self, F, stbase="simplextree.txt", dim=0, card=50):
         super(SimplexTreeModel, self).__init__()
         self.F = F
         self.dim = dim
         self.card = card
+        self.st = stbase
         
     def call(self):
         d, c = self.dim, self.card
-        fct = self.F
-        
+        st, fct = self.st, self.F
+
         # Turn STPers into a numpy function
-        SimplexTreeTF = lambda fct: tf.numpy_function(SimplexTree, [fct, d, c], [tf.int32 for _ in range(2*c)])
+        SimplexTreeTF = lambda fct: tf.numpy_function(SimplexTree, [np.array([st], dtype=str), fct, d, c], [tf.int32 for _ in range(2*c)])
         
         # Don't try to compute gradients for the vertex pairs
         fcts = tf.reshape(fct, [1, self.F.shape[0]])
