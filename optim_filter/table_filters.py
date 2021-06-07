@@ -4,14 +4,13 @@ import matplotlib.pyplot as plt
 
 mnist_ds = [] #['all'] + ['vs' + str(i) + str(j) for i in range(0,9) for j in range(i+1,10)]
 graphs_ds = ['PROTEINS', 'MUTAG', 'COX2', 'DHFR', 'BZR', 'FRANKENSTEIN', 'IMDB-MULTI', 'IMDB-BINARY', 'NCI1', 'NCI109']
-d3s_ds = [] #['3DS']
 
 matrix = np.zeros([10,10])
 
-ls_datasets = mnist_ds + graphs_ds #+ d3s_ds
-ls_folds = [] + [1 for _ in range(len(graphs_ds))] #+ [1 for _ in range(len(d3s_ds))]  
+ls_datasets = mnist_ds + graphs_ds
+ls_folds = [] + [1 for _ in range(len(graphs_ds))]  
            #[0 for _ in range(len(mnist_ds))]   
-ls_epochs = [] + [2 for _ in range(len(graphs_ds))] #+ [4]
+ls_epochs = [] + [19 for _ in range(len(graphs_ds))]
             #[50 for _ in range(len(mnist_ds))] 
 
 with open('table.tex', 'w') as ftable:
