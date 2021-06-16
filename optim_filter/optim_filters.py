@@ -314,74 +314,97 @@ faccs    = open('accs_'   + filename + '_fold' + str(fold) + '.txt', 'w')
 for epoch in range(num_epochs+1):
     
     np.random.seed(int(1e2*epoch))
-    batch = np.random.choice(train_idxs, batch_size, replace=False)
-    batch_labs = [LAB[i] for i in batch]
+
+    npts, total_n, batch_i = 0, len(train_idxs), 0
+    perm = np.random.permutation(total_n)
+    Lgrads = []
+
+    while npts < total_n:
+
+        batch = perm[batch_i*batch_size:(batch_i+1)*batch_size]
+        npts += batch_size
+        batch_i += 1
+        weight = len(batch)/total_n
+
+        #batch = np.random.choice(train_idxs, batch_size, replace=False)
+        batch_labs = [LAB[i] for i in batch]
     
-    with tf.GradientTape() as tape:
+        with tf.GradientTape() as tape:
 
-        dists = []
-        for nf in range(num_filts):
-        
-            if data_type == 'MNIST':
-                dgms = []
-                for i in batch:
-                    img = IMG[i]
-                    inds = np.argwhere(img > 0)
-                    IX, IY = 1e3 * np.ones(img.shape), 1e3 * np.ones(img.shape)
-                    for k in range(len(inds)):
-                        IX[inds[k,0], inds[k,1]] = inds[k,0]
-                        IY[inds[k,0], inds[k,1]] = inds[k,1]
-                    II = tf.math.cos(C[nf])*IX + tf.math.sin(C[nf])*IY
-                    dgm = CubicalModel(II, dim=hdim, card=hcard).call()
-                    dgms.append(dgm)
-
-            elif data_type == 'GRAPHS':
-                dgms = []
-                for i in batch:
-
-                    if use_spektral:
-                        loader = SingleLoader(data[i:i+1], epochs=1)
-                        for b in loader:
-                            func = gnn([ b[0][0], b[0][1] ])[:,nf]
-                    else:
-                        func = tf.math.reduce_sum(tf.math.multiply(C[nf,:], tf.constant(EVE[i], dtype=tf.float32)), axis=1)
-
-                    dgm = SimplexTreeModel(F=func, stbase=path+graph_names[i]+'_st.txt', dim=hdim, card=hcard).call()
-                    dgms.append(dgm)
-        
-            proj_dgms = tf.linalg.matmul(tf.concat(dgms,axis=0), .5*tf.ones([2,2], tf.float32))
-            dgms_big = tf.concat([tf.reshape(tf.concat([dgm, proj_dgms[:hcard*idg], proj_dgms[hcard*(idg+1):]], axis=0), [-1,2,1,1]) for idg, dgm in enumerate(dgms)], axis=2)
-            cosines, sines = tf.math.cos(thetas), tf.math.sin(thetas)
-            vecs = tf.concat([tf.reshape(cosines,[1,1,1,-1]), tf.reshape(sines,[1,1,1,-1])], axis=1)
-            theta_projs = tf.sort(tf.math.reduce_sum(tf.math.multiply(dgms_big, vecs), axis=1), axis=0)
-            t1 = tf.reshape(theta_projs, [hcard*batch_size,-1,1,numdir])
-            t2 = tf.reshape(theta_projs, [hcard*batch_size,1,-1,numdir])
-            dists.append(tf.math.reduce_mean(tf.math.reduce_sum(tf.math.abs(t1-t2), axis=0), axis=2))
-
-        loss = 0.
-        classes = np.unique(batch_labs)
-        for l in classes:
-            lidxs = np.argwhere(np.array(batch_labs) == l).ravel()
-            idxs1 = list(itertools.product(lidxs, lidxs))
-            idxs2 = list(itertools.product(lidxs, range(batch_size)))
+            dists = []
             for nf in range(num_filts):
-                cost1 = tf.math.reduce_sum(tf.gather_nd(dists[nf], idxs1))
-                cost2 = tf.math.reduce_sum(tf.gather_nd(dists[nf], idxs2))
-                if cost2 > 0:
-                    loss += cost1 / cost2
-                else:
-                    loss += cost1
+        
+                if data_type == 'MNIST':
+                    dgms = []
+                    for i in batch:
+                        img = IMG[i]
+                        inds = np.argwhere(img > 0)
+                        IX, IY = 1e3 * np.ones(img.shape), 1e3 * np.ones(img.shape)
+                        for k in range(len(inds)):
+                            IX[inds[k,0], inds[k,1]] = inds[k,0]
+                            IY[inds[k,0], inds[k,1]] = inds[k,1]
+                        II = tf.math.cos(C[nf])*IX + tf.math.sin(C[nf])*IY
+                        dgm = CubicalModel(II, dim=hdim, card=hcard).call()
+                        dgms.append(dgm)
+
+                elif data_type == 'GRAPHS':
+                    dgms = []
+                    for i in batch:
+    
+                        if use_spektral:
+                            loader = SingleLoader(data[i:i+1], epochs=1)
+                            for b in loader:
+                                func = gnn([ b[0][0], b[0][1] ])[:,nf]
+                        else:
+                            func = tf.math.reduce_sum(tf.math.multiply(C[nf,:], tf.constant(EVE[i], dtype=tf.float32)), axis=1)
+
+                        dgm = SimplexTreeModel(F=func, stbase=path+graph_names[i]+'_st.txt', dim=hdim, card=hcard).call()
+                        dgms.append(dgm)
+        
+                proj_dgms = tf.linalg.matmul(tf.concat(dgms,axis=0), .5*tf.ones([2,2], tf.float32))
+                dgms_big = tf.concat([tf.reshape(tf.concat([dgm, proj_dgms[:hcard*idg], proj_dgms[hcard*(idg+1):]], axis=0), [-1,2,1,1]) for idg, dgm in enumerate(dgms)], axis=2)
+                cosines, sines = tf.math.cos(thetas), tf.math.sin(thetas)
+                vecs = tf.concat([tf.reshape(cosines,[1,1,1,-1]), tf.reshape(sines,[1,1,1,-1])], axis=1)
+                theta_projs = tf.sort(tf.math.reduce_sum(tf.math.multiply(dgms_big, vecs), axis=1), axis=0)
+                t1 = tf.reshape(theta_projs, [hcard*len(batch),-1,1,numdir]) #[hcard*batch_size,-1,1,numdir])
+                t2 = tf.reshape(theta_projs, [hcard*len(batch),1,-1,numdir]) #[hcard*batch_size,1,-1,numdir])
+                dists.append(tf.math.reduce_mean(tf.math.reduce_sum(tf.math.abs(t1-t2), axis=0), axis=2))
+
+            loss = 0.
+            classes = np.unique(batch_labs)
+            for l in classes:
+                lidxs = np.argwhere(np.array(batch_labs) == l).ravel()
+                idxs1 = list(itertools.product(lidxs, lidxs))
+                idxs2 = list(itertools.product(lidxs, range(len(batch))))
+                for nf in range(num_filts):
+                    cost1 = tf.math.reduce_sum(tf.gather_nd(dists[nf], idxs1))
+                    cost2 = tf.math.reduce_sum(tf.gather_nd(dists[nf], idxs2))
+                    if cost2 > 0:
+                        loss += cost1 / cost2
+                    else:
+                        loss += cost1
+
+        if data_type == 'GRAPHS' and use_spektral:
+            gradients = tape.gradient(loss, gnn.trainable_variables)
+            #np.random.seed(epoch)
+            #gradients[0] = tf.convert_to_tensor(gradients[0]) + np.random.normal(loc=0., scale=sigma, size=gradients[0].shape)
+            #optimizer.apply_gradients(zip(gradients, gnn.trainable_variables))
+        else:
+            gradients = tape.gradient(loss, [C]) 
+            #np.random.seed(epoch)
+            #gradients[0] = tf.convert_to_tensor(gradients[0]) + np.random.normal(loc=0., scale=sigma, size=gradients[0].shape)
+            #optimizer.apply_gradients(zip(gradients, [C]))
+
+        Lgrads.append(weight*gradients[0])
+
+    final_grad = gradients
+    final_grad[0] = tf.math.add_n(Lgrads)
 
     if data_type == 'GRAPHS' and use_spektral:
-        gradients = tape.gradient(loss, gnn.trainable_variables)
-        #np.random.seed(epoch)
-        #gradients[0] = tf.convert_to_tensor(gradients[0]) + np.random.normal(loc=0., scale=sigma, size=gradients[0].shape)
-        optimizer.apply_gradients(zip(gradients, gnn.trainable_variables))
+        optimizer.apply_gradients(zip(final_grad, gnn.trainable_variables))
     else:
-        gradients = tape.gradient(loss, [C]) 
-        #np.random.seed(epoch)
-        #gradients[0] = tf.convert_to_tensor(gradients[0]) + np.random.normal(loc=0., scale=sigma, size=gradients[0].shape)
-        optimizer.apply_gradients(zip(gradients, [C]))
+        optimizer.apply_gradients(zip(final_grad, [C]))
+
 
     floss.write(str(loss.numpy()) + '\n')
     floss.flush()

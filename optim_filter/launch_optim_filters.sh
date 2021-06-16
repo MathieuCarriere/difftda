@@ -22,9 +22,9 @@
 #		done
 #	done	
 #done
-for dataset in PROTEINS MUTAG DHFR IMDB-BINARY COX2 BZR FRANKENSTEIN IMDB-MULTI NCI1 NCI109
+for dataset in MUTAG PROTEINS DHFR IMDB-BINARY COX2 BZR FRANKENSTEIN IMDB-MULTI NCI1 NCI109
 do
-	for learning in 0.00001
+	for learning in 0.0001
 	do
 		for batch in 150
 		do
