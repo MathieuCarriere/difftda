@@ -1,3 +1,5 @@
+**WARNING: this is legacy code, which is no longer maintained!! The TensorFlow layers of this repo are now improved and part of the GUDHI library (https://gudhi.inria.fr/python/latest/).**
+
 Description
 ***********
 
